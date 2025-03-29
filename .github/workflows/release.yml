@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{steps.create_release.outputs.upload_url}}
+    steps:
+      - id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          tag_name: ${{github.ref}}
+          release_name: qt_${{github.ref}}
+          draft: false
+          prerelease: false
+
+  windows-arm:
+    needs: release
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        include:
+          - os: windows-arm64
+            comp: msvc2022
+            flags: ""
+          - os: windows-arm64
+            comp: llvm1706
+            flags: -no-sql-odbc -- -DCMAKE_C_COMPILER="clang.exe" -DCMAKE_CXX_COMPILER="clang++.exe" -G"Ninja"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/windows-arm64
+        id: build
+        with:
+          vvv:    "6.8.3"
+          vv:     "6.8"
+          comp:   ${{matrix.comp}}
+          flags:  ${{matrix.flags}}
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: ${{needs.release.outputs.upload_url}}
+          asset_path: ${{steps.build.outputs.path}}
+          asset_name: ${{steps.build.outputs.fn}}
+          asset_content_type: application/octet-stream
