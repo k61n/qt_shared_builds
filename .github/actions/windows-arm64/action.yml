@@ -44,6 +44,7 @@ runs:
           -confirm-license `
           -nomake examples `
           -nomake tests `
+          -skip qtwebengine `
           ${{inputs.flags}}
         cmake --build . --parallel $env:NUMBER_OF_PROCESSORS
         cmake --install .
