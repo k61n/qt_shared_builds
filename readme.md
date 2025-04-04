@@ -1,0 +1,1 @@
+Alternative builds of Qt for dynamic linking for Windows arm64.
