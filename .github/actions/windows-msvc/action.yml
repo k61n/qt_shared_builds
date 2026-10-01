@@ -22,12 +22,15 @@ runs:
         $vv = ($v -split '\.')[0..1] -join '.'
         $os = $env:RUNNER_OS.ToLower()
         $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
-        $vspath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
         Add-Content -Path $env:GITHUB_ENV -Value "v=${v}"
         Add-Content -Path $env:GITHUB_ENV -Value "vv=${vv}"
         Add-Content -Path $env:GITHUB_ENV -Value "os=${os}"
         Add-Content -Path $env:GITHUB_ENV -Value ("arch=" + ($arch -replace '^amd64$', 'x64'))
-        Add-Content -Path $env:GITHUB_ENV -Value "vspath=${vspath}"
+        $vspath = "C:\Program Files\Microsoft Visual Studio"
+        $vcvars = Get-ChildItem -Path $vspath -Filter vcvarsall.bat -Recurse -ErrorAction SilentlyContinue |
+          Select-Object -First 1 -ExpandProperty FullName
+        if (-not $vcvars) { throw "vcvarsall.bat not found in $vspath" }
+        Add-Content -Path $env:GITHUB_ENV -Value "vcvars=${vcvars}"
         Remove-Item C:\mingw64 -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item "C:\Program Files\LLVM" -Recurse -Force -ErrorAction SilentlyContinue
     - name: download and unpack
@@ -42,7 +45,7 @@ runs:
     - name: configure
       shell: cmd
       run: |
-        call "${{env.vspath}}\VC\Auxiliary\Build\vcvarsall.bat" ${{env.arch}}
+        call "${{env.vcvars}}" ${{env.arch}}
         cd qt\build
         ..\configure.bat ^
           -prefix ".\qt${{env.v}}_shared_${{env.os}}_msvc2022_${{env.arch}}" ^
@@ -58,13 +61,13 @@ runs:
     - name: build
       shell: cmd
       run: |
-        call "${{env.vspath}}\VC\Auxiliary\Build\vcvarsall.bat" ${{env.arch}}
+        call "${{env.vcvars}}" ${{env.arch}}
         cd qt\build
         cmake --build .
     - name: install
       shell: cmd
       run: |
-        call "${{env.vspath}}\VC\Auxiliary\Build\vcvarsall.bat" ${{env.arch}}
+        call "${{env.vcvars}}" ${{env.arch}}
         cd qt\build
         cmake --install .
     - name: pack
