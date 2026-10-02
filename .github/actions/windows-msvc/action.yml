@@ -26,11 +26,29 @@ runs:
         Add-Content -Path $env:GITHUB_ENV -Value "vv=${vv}"
         Add-Content -Path $env:GITHUB_ENV -Value "os=${os}"
         Add-Content -Path $env:GITHUB_ENV -Value ("arch=" + ($arch -replace '^amd64$', 'x64'))
-        $vspath = "C:\Program Files\Microsoft Visual Studio"
-        $vcvars = Get-ChildItem -Path $vspath -Filter vcvarsall.bat -Recurse -ErrorAction SilentlyContinue |
+    - name: set up MSVC
+      shell: powershell
+      run: |
+        $vswhere = Get-ChildItem `
+          -Path "C:\Program Files (x86)\Microsoft Visual Studio\Installer", `
+                "C:\Program Files (Arm)\Microsoft Visual Studio\Installer", `
+                "C:\Program Files\Microsoft Visual Studio\Installer" `
+          -Filter vswhere.exe -ErrorAction SilentlyContinue |
           Select-Object -First 1 -ExpandProperty FullName
-        if (-not $vcvars) { throw "vcvarsall.bat not found in $vspath" }
-        Add-Content -Path $env:GITHUB_ENV -Value "vcvars=${vcvars}"
+        if (-not $vswhere) { throw "vswhere.exe not found" }
+        $vspath = & $vswhere -latest -products * -property installationPath
+        $vscmd = Get-ChildItem -Path $vspath -Filter VsDevCmd.bat -Recurse -ErrorAction SilentlyContinue |
+          Select-Object -First 1 -ExpandProperty FullName
+        if (-not $vscmd) { throw "VsDevCmd.bat not found in $vspath" }
+        $vsver = (& $vswhere -latest -products * -property installationVersion) -split '\.' | Select-Object -First 1
+        $vsyear = switch ($vsver) {
+          '16' { '2019' }
+          '17' { '2022' }
+          '18' { '2026' }
+          default { throw "Unrecognized Visual Studio version $vsver" }
+        }
+        Add-Content -Path $env:GITHUB_ENV -Value "vscmd=${vscmd}"
+        Add-Content -Path $env:GITHUB_ENV -Value "vsyear=${vsyear}"
         Remove-Item C:\mingw64 -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item "C:\Program Files\LLVM" -Recurse -Force -ErrorAction SilentlyContinue
     - name: download and unpack
@@ -45,10 +63,10 @@ runs:
     - name: configure
       shell: cmd
       run: |
-        call "${{env.vcvars}}" ${{env.arch}}
+        call "${{env.vscmd}}" -arch=${{env.arch}}
         cd qt\build
         ..\configure.bat ^
-          -prefix ".\qt${{env.v}}_shared_${{env.os}}_msvc2022_${{env.arch}}" ^
+          -prefix ".\qt${{env.v}}_shared_${{env.os}}_msvc${{env.vsyear}}_${{env.arch}}" ^
           -platform win32-msvc ^
           -release ^
           -shared ^
@@ -61,13 +79,13 @@ runs:
     - name: build
       shell: cmd
       run: |
-        call "${{env.vcvars}}" ${{env.arch}}
+        call "${{env.vscmd}}" -arch=${{env.arch}}
         cd qt\build
         cmake --build .
     - name: install
       shell: cmd
       run: |
-        call "${{env.vcvars}}" ${{env.arch}}
+        call "${{env.vscmd}}" -arch=${{env.arch}}
         cd qt\build
         cmake --install .
     - name: pack
@@ -76,9 +94,9 @@ runs:
       run: |
         cd qt\build
         7z a -tzip `
-          ".\qt${{env.v}}_shared_${{env.os}}_msvc2022_${{env.arch}}.zip" `
-          ".\qt${{env.v}}_shared_${{env.os}}_msvc2022_${{env.arch}}\*"
+          ".\qt${{env.v}}_shared_${{env.os}}_msvc${{env.vsyear}}_${{env.arch}}.zip" `
+          ".\qt${{env.v}}_shared_${{env.os}}_msvc${{env.vsyear}}_${{env.arch}}\*"
         Add-Content -Path $env:GITHUB_OUTPUT -Value `
-          "fn=qt${{env.v}}_shared_${{env.os}}_msvc2022_${{env.arch}}.zip"
-        $path = (Resolve-Path "qt${{env.v}}_shared_${{env.os}}_msvc2022_${{env.arch}}.zip").Path
+          "fn=qt${{env.v}}_shared_${{env.os}}_msvc${{env.vsyear}}_${{env.arch}}.zip"
+        $path = (Resolve-Path "qt${{env.v}}_shared_${{env.os}}_msvc${{env.vsyear}}_${{env.arch}}.zip").Path
         Add-Content -Path $env:GITHUB_OUTPUT -Value "path=${path}"
