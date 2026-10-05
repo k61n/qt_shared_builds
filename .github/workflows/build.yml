@@ -41,9 +41,9 @@ jobs:
       matrix:
         include:
           - os: windows-11-arm
-            comp: llvm1706
-            archive: llvm-mingw-20231128-ucrt-aarch64.zip
-            link: https://github.com/mstorsjo/llvm-mingw/releases/download/20231128/
+            comp: llvm2217
+            archive: llvm-mingw-20260602-ucrt-aarch64.zip
+            link: https://github.com/mstorsjo/llvm-mingw/releases/download/20260602/
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/windows
